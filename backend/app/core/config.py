@@ -5,7 +5,7 @@
 生产环境则通过 ``_guard_prod_secrets`` 启动时拦截占位密钥，避免服务带着
 不安全配置悄悄运行。
 
-基础骨架阶段只保留应用运行必需的最小配置。Redis、对象存储、生成/切片/打印
+当前只保留应用运行与身份认证所需的配置。Redis、对象存储、生成/切片/打印
 提供方以及 LLM 相关配置会随对应功能模块的后续 PR 逐步引入。
 """
 
@@ -64,6 +64,10 @@ class Settings(BaseSettings):
 
     # 数据库。
     database_url: str = "postgresql+asyncpg://xe6:xe6@localhost:5432/xe6"
+
+    # 认证：JWT access token 签发参数。
+    access_token_expire_minutes: int = 60
+    jwt_algorithm: str = "HS256"
 
     @property
     def is_prod(self) -> bool:
