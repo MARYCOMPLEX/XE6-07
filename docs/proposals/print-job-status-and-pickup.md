@@ -2,7 +2,7 @@
 
 ## 动机 / 用户故事
 
-用户确认打印后，需要知道任务是否排队、正在打印、暂停、失败或完成；异常发生时需要理解原因和下一步；完成后需要获得取件记录。本期先跑通“已发送打印 → 状态可见 → 异常可解释 → 完成可取件”的最小闭环，而非完整打印农场系统。
+用户确认打印后，需要知道任务是否排队、正在打印、暂停、失败或完成；异常发生时需要理解原因和下一步；完成后需要获得取件记录。本期先跑通“已发送打印 -> 状态可见 -> 异常可解释 -> 完成可取件”的最小闭环，而非完整打印农场系统。
 
 ## 目标用户
 
@@ -18,25 +18,30 @@
 
 本期做：
 
-- 查看 `queued`、`printing`、`paused`、`failed`、`completed`、`picked_up` 状态。
+- 查看 `queued`、`printing`、`paused`、`failed`、`completed` 等打印状态，以及独立的 `waiting_pickup`、`picked_up` 取件状态。
 - 展示任务状态、进度、预计剩余时间、打印机、耗材、开始和完成时间。
 - 在暂停或失败时展示异常类型、用户可理解说明、建议下一步和原始设备错误码。
 - 完成后记录实际完成时间、实际耗材和完成状态。
 - 创建 `PickupRecord`，记录取件码、取件状态、取件时间和操作人。
+- 消费设备执行层上报的状态、进度和异常事件，形成面向用户的查询视图。
 
 本期明确不做：复杂打印队列调度、多打印机自动分配、远程暂停/恢复/取消控制面板、摄像头 AI 失败检测、失败赔付或自动重打、取件柜、短信验证码、线下核销、成品图、评分和社区反馈。
 
+本提案不负责连接打印机、下发 G-code、发送开始/暂停/取消命令，也不自行推断设备是否成功执行命令；这些能力由物理打印机执行提案负责。本提案只消费其稳定事件并负责状态展示、异常解释和取件记录。
+
 ## 关键决策与依据
 
-用户只看到平台内 `PrintJob` 状态，不直接暴露厂商原始状态；异常必须同时包含解释、建议和原始错误码；只有 `completed` 后才创建 `PickupRecord`；打印完成与已取件必须是独立状态。
+用户只看到平台内 `PrintJob` 状态，不直接暴露厂商原始状态；异常必须同时包含解释、建议和原始错误码；只有 `completed` 后才创建 `PickupRecord`；打印完成与已取件必须是两个独立维度。设备事件可能重复投递，因此同一 `PrintJob` 最多只能存在一条有效 `PickupRecord`，重复完成事件不得生成多个取件码。
 
 ## 基本概念与信息结构
 
-- `PrintJob`：`id`、`checklistId`、`printerId`、`status`、`progress`、`estimatedRemainingTime`、`startedAt`、`completedAt`、`actualTime`、`actualFilament`、`lastErrorCode`、`lastErrorMessage`、`updatedAt`。
+- `PrintJob`：`id`、`checklistId`、`printerId`、`status`、`progress`、`estimatedRemainingTime`、`startedAt`、`completedAt`、`actualTime`、`actualFilament`、`lastErrorCode`、`lastErrorMessage`、`lastDeviceEventId`、`updatedAt`。
 - `PrintException`：`id`、`printJobId`、`errorCode`、`rawMessage`、`displayTitle`、`displayExplanation`、`nextAction`、`severity`、`createdAt`。
 - `PickupRecord`：`id`、`printJobId`、`pickupCode`、`status`、`pickedUpAt`、`pickedUpBy`、`createdAt`。
 
-状态关系：`queued → printing → paused / failed / completed → waiting_pickup → picked_up`。
+打印任务状态关系：`queued -> printing -> paused / failed / completed`。`paused` 可以回到 `printing`，终态不能被迟到事件回退。
+
+取件记录状态关系：`waiting_pickup -> picked_up`。页面可以将“打印已完成且取件记录已领取”展示为 `picked_up`，但不得用取件状态覆盖 `PrintJob.completed` 的执行事实。
 
 ## 原型 / 演示
 
@@ -66,16 +71,22 @@
 
 - 现状：完成与取件没有可追溯记录。
 - 提议后的行为：`completed` 时生成 `PickupRecord`。
-- 验收：记录为 `waiting_pickup` 且具有取件码。
+- 验收：记录为 `waiting_pickup` 且具有唯一取件码；重复投递同一完成事件或并发处理完成事件时，仍只有一条有效记录和一个取件码。
 
 ### 例子 5：取件后更新状态
 
 - 现状：打印完成无法证明实物已交付。
 - 提议后的行为：管理员或系统确认取件后记录时间与操作人。
-- 验收：`PickupRecord` 更新为已取件，任务状态变为 `picked_up`。
+- 验收：`PickupRecord` 更新为 `picked_up` 并记录取件时间与操作人；`PrintJob` 仍保留 `completed`，用户视图可显示“已取件”。
 
 ### 例子 6：未完成任务不能取件
 
 - 现状：不应对尚未完成的实物提供取件凭证。
 - 提议后的行为：`queued`、`printing`、`paused`、`failed` 不生成可用取件记录。
 - 验收：这些状态不能进入取件流程。
+
+### 例子 7：设备命令与展示边界
+
+- 现状：状态展示功能可能越过边界直接向设备发送控制命令，造成职责重复和状态不一致。
+- 提议后的行为：本模块只消费物理打印机执行层的稳定事件；控制操作由执行层处理并回传结果。
+- 验收：状态查询和异常解释不直接调用厂商协议；设备命令结果未知时，页面展示执行层返回的 `unknown` 或对应解释，不伪造成功状态。
