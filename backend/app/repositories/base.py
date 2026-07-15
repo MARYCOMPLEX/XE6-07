@@ -12,6 +12,7 @@ from typing import Any
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.db import MockSession
 from app.models.base import Base
 
 
@@ -24,7 +25,7 @@ class BaseRepository[ModelT: Base]:
 
     model: type[ModelT]
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession | MockSession) -> None:
         self.session = session
 
     # -- 内部辅助 ---------------------------------------------------------

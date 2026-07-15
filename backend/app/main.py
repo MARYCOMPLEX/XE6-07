@@ -45,7 +45,7 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"] if settings.app_debug else [],
+        allow_origins=list(settings.app_cors_origins),
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -71,7 +71,21 @@ def _register_middleware(app: FastAPI) -> None:
         trace_id = request.headers.get("x-trace-id") or uuid.uuid4().hex
         bind_trace_id(trace_id)
         start = time.perf_counter()
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except Exception:
+            elapsed_ms = int((time.perf_counter() - start) * 1000)
+            logger.exception(
+                "http.request.failed",
+                method=request.method,
+                path=request.url.path,
+                status=500,
+                elapsed_ms=elapsed_ms,
+            )
+            response = JSONResponse(
+                status_code=500,
+                content={"error": {"code": "internal_error", "message": "Internal server error"}},
+            )
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         response.headers["x-trace-id"] = trace_id
         response.headers["x-response-time-ms"] = str(elapsed_ms)

@@ -17,6 +17,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 这些占位密钥只允许本地/测试使用，绝不能进入生产环境。
 _INSECURE_DEFAULTS = {"change-me", "change-me-in-prod"}
+_MIN_SECRET_LENGTH = 32
+_LOCAL_CORS_HOSTS = ("localhost", "127.0.0.1")
 
 type AppEnv = Literal["local", "test", "prod"]
 
@@ -28,6 +30,7 @@ class Settings(BaseSettings):
     app_env: AppEnv = "local"
     app_debug: bool = True
     app_secret_key: str = "change-me"  # noqa: S105  (开发占位值；生产由 _guard_prod_secrets 拦截)
+    app_cors_origins: tuple[str, ...] = ("http://localhost:3000", "http://localhost:5173")
     api_v1_prefix: str = "/api/v1"
 
     # 数据库。
@@ -47,10 +50,19 @@ class Settings(BaseSettings):
         if not self.is_prod:
             return self
         offenders: list[str] = []
-        if self.app_secret_key in _INSECURE_DEFAULTS:
-            offenders.append("APP_SECRET_KEY")
+        secret = self.app_secret_key.strip()
+        if secret in _INSECURE_DEFAULTS or len(secret) < _MIN_SECRET_LENGTH:
+            offenders.append(f"APP_SECRET_KEY (minimum {_MIN_SECRET_LENGTH} characters)")
+        if self.app_debug:
+            offenders.append("APP_DEBUG=false")
+        if (
+            not self.app_cors_origins
+            or "*" in self.app_cors_origins
+            or any(host in origin for origin in self.app_cors_origins for host in _LOCAL_CORS_HOSTS)
+        ):
+            offenders.append("APP_CORS_ORIGINS (explicit allowlist required)")
         if offenders:
-            raise ValueError("Insecure placeholder secrets in prod; set: " + ", ".join(offenders))
+            raise ValueError("Unsafe production settings; set: " + ", ".join(offenders))
         return self
 
 

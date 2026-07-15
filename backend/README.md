@@ -36,7 +36,8 @@ make dev        # 启动 API（热重载）
 | `make lint` | Ruff 代码检查 |
 | `make fmt` | Ruff 格式化并自动修复 |
 | `make type` | mypy 严格类型检查 |
-| `make ci` | CI 静态检查（ruff + mypy） |
+| `make ci` | CI 检查（ruff + mypy + pytest） |
+| `make test` | 运行 pytest 回归测试 |
 | `make migrate` | 应用 Alembic 迁移到最新 |
 | `make revision m="..."` | 生成新的 Alembic 迁移 |
 
@@ -62,5 +63,6 @@ docker/           # API 镜像 Dockerfile
 - Ruff 代码检查
 - mypy 严格类型检查
 - Python 编译与 FastAPI 应用导入
+- pytest 回归测试
 
-CI 只做静态检查与导入验证，不连接任何中间件、不部署服务。依赖版本由 `uv.lock` 锁定。
+CI 不连接外部服务、不部署应用。依赖版本由 `uv.lock` 锁定。

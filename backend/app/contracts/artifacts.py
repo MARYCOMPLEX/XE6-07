@@ -14,6 +14,7 @@ class ArtifactKind(StrEnum):
     reference_image = "reference_image"
     model_glb = "model_glb"
     model_stl = "model_stl"
+    model_3mf = "model_3mf"
     gcode = "gcode"
     slice_report = "slice_report"
     mesh_report = "mesh_report"
@@ -21,19 +22,17 @@ class ArtifactKind(StrEnum):
 
 
 class ArtifactRef(FrozenContract):
-    """不透明产物身份，以及可选的客户端安全下载地址。
+    """不透明产物身份与稳定元数据。
 
-    ``artifact_id`` 是模块间传递的稳定身份。存储 key 与提供方凭据故意不进入
-    这个契约，避免异步事件和业务模块泄露底层存储实现。
+    ``artifact_id`` 是模块间传递的稳定身份。下载地址、存储 key、提供方名称与凭据
+    均不进入这个契约；客户端访问地址只在完成授权校验后的 API 响应边界临时签发。
     """
 
     artifact_id: str
     kind: ArtifactKind
-    download_url: str | None = None
     media_type: str | None = None
     checksum_sha256: str | None = None
     size_bytes: int | None = None
-    provider: str | None = None
     simulated: bool = False
     metadata: Mapping[str, object] | None = None
 

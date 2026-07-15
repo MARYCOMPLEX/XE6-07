@@ -7,13 +7,48 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from collections.abc import Mapping
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, model_validator
+
+
+class FrozenDict(dict[Any, Any]):
+    """保持 JSON 可序列化形状的只读字典。"""
+
+    def _immutable(self, *_: Any, **__: Any) -> None:
+        raise TypeError("FrozenDict is immutable")
+
+    __setitem__ = _immutable
+    __delitem__ = _immutable
+    clear = _immutable
+    pop = _immutable
+    popitem = _immutable  # type: ignore[assignment]
+    setdefault = _immutable
+    update = _immutable
+    __ior__ = _immutable  # type: ignore[assignment]
+
+
+def _deep_freeze(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return FrozenDict({key: _deep_freeze(item) for key, item in value.items()})
+    if isinstance(value, list | tuple):
+        return tuple(_deep_freeze(item) for item in value)
+    if isinstance(value, set | frozenset):
+        return frozenset(_deep_freeze(item) for item in value)
+    return value
 
 
 class FrozenContract(BaseModel):
     """不可变、字段封闭的跨模块 DTO 基类。"""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+    @model_validator(mode="after")
+    def _freeze_nested_values(self) -> FrozenContract:
+        for field_name in type(self).model_fields:
+            object.__setattr__(self, field_name, _deep_freeze(getattr(self, field_name)))
+        return self
 
 
 # 将少量真正跨模块的契约集中导出，方便发现。

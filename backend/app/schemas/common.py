@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ORMModel(BaseModel):
@@ -23,8 +23,8 @@ class TimestampedOut(ORMModel):
     updated_at: datetime
 
 
-class Page[T](BaseModel):
-    """分页列表响应外壳。"""
+class OffsetPage[T](BaseModel):
+    """仅用于明确允许 offset 分页的内部列表。"""
 
     items: list[T]
     total: int
@@ -34,6 +34,16 @@ class Page[T](BaseModel):
     @property
     def pages(self) -> int:
         return (self.total + self.size - 1) // self.size if self.size else 0
+
+
+class CursorPage[T](BaseModel):
+    """使用稳定游标跨批次读取的列表响应。"""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    items: list[T]
+    next_cursor: str | None = Field(default=None, serialization_alias="nextCursor")
+    has_more: bool = Field(serialization_alias="hasMore")
 
 
 class Message(BaseModel):

@@ -12,6 +12,7 @@ from app.contracts.artifacts import ArtifactRef
 
 class JobKind(StrEnum):
     generation = "generation"
+    printability_check = "printability_check"
     preprocess = "preprocess"
     slicing = "slicing"
     printing = "printing"

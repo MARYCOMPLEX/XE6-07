@@ -30,12 +30,15 @@ class MockSession:
         logger.debug("db.get", entity=getattr(entity, "__name__", str(entity)), id=ident)
         return None
 
-    async def execute(self, *_: Any, **__: Any) -> None:
+    async def execute(self, *_: Any, **__: Any) -> MockResult:
         logger.debug("db.execute")
-        return None
+        return MockResult()
 
     def add(self, obj: Any) -> None:
         logger.debug("db.add", obj=type(obj).__name__)
+
+    async def delete(self, obj: Any) -> None:
+        logger.debug("db.delete", obj=type(obj).__name__)
 
     async def flush(self, *_: Any, **__: Any) -> None:
         logger.debug("db.flush")
@@ -52,6 +55,26 @@ class MockSession:
     @property
     def sync_session(self) -> Any:
         return self
+
+
+class MockScalarResult:
+    """空查询的标量结果，保持 SQLAlchemy Result 的调用形状。"""
+
+    def all(self) -> list[Any]:
+        return []
+
+
+class MockResult:
+    """骨架会话使用的空结果对象。"""
+
+    def scalar_one_or_none(self) -> None:
+        return None
+
+    def scalar_one(self) -> int:
+        return 0
+
+    def scalars(self) -> MockScalarResult:
+        return MockScalarResult()
 
 
 async def get_db() -> AsyncGenerator[MockSession, None]:

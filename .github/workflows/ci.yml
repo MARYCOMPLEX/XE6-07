@@ -30,10 +30,10 @@ jobs:
         run: uv sync --locked
 
       - name: Ruff lint
-        run: uv run ruff check app
+        run: uv run ruff check app tests
 
       - name: Ruff format check
-        run: uv run ruff format --check app
+        run: uv run ruff format --check app tests
 
       - name: Mypy type check
         run: uv run mypy app
@@ -43,3 +43,6 @@ jobs:
 
       - name: Import application
         run: uv run python -c "from app.main import app; print(app.title)"
+
+      - name: Test
+        run: uv run pytest
