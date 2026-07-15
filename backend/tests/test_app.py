@@ -30,6 +30,26 @@ def test_app_error_uses_shared_error_shape() -> None:
     assert response.headers["x-response-time-ms"]
 
 
+def test_valid_inbound_trace_id_is_preserved() -> None:
+    client = TestClient(create_app())
+
+    response = client.get("/health", headers={"x-trace-id": "abc-123-DEF"})
+
+    assert response.headers["x-trace-id"] == "abc-123-DEF"
+
+
+def test_spoofed_trace_id_is_replaced_with_safe_server_value() -> None:
+    client = TestClient(create_app())
+
+    # 含换行/控制字符或超长的伪造值不应被信任、原样回写日志与响应头。
+    for bad in ["evil\r\ninjected", "x" * 500, "has space", "bad/slash"]:
+        response = client.get("/health", headers={"x-trace-id": bad})
+        returned = response.headers["x-trace-id"]
+        assert returned != bad
+        assert returned.isalnum()  # 服务端生成的 uuid hex
+        assert len(returned) == 32
+
+
 def test_unhandled_error_is_correlated_without_leaking_details() -> None:
     app = create_app()
 

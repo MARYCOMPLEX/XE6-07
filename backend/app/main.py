@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
@@ -22,6 +23,18 @@ from app.core.exceptions import AppError
 from app.core.logging import bind_trace_id, configure_logging, get_logger
 
 logger = get_logger(__name__)
+
+# 入站 x-trace-id 只在匹配这个安全模式时才被信任：长度受限的十六进制/连字符串。
+# 客户端可以传入自己的关联 id 以贯穿上下游调用，但不允许注入任意长度或含控制字符、
+# 换行的值——否则会污染结构化日志、被回写进响应头，甚至冒用他人的 trace。
+_TRACE_ID_RE = re.compile(r"\A[0-9a-zA-Z][0-9a-zA-Z-]{0,63}\Z")
+
+
+def _safe_trace_id(inbound: str | None) -> str:
+    """采纳合法的入站 trace id，否则生成一个服务端 trace id。"""
+    if inbound and _TRACE_ID_RE.match(inbound):
+        return inbound
+    return uuid.uuid4().hex
 
 
 @asynccontextmanager
@@ -68,7 +81,7 @@ def _register_middleware(app: FastAPI) -> None:
     async def trace_and_timing(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
-        trace_id = request.headers.get("x-trace-id") or uuid.uuid4().hex
+        trace_id = _safe_trace_id(request.headers.get("x-trace-id"))
         bind_trace_id(trace_id)
         start = time.perf_counter()
         try:

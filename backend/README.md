@@ -60,9 +60,10 @@ docker/           # API 镜像 Dockerfile
 
 仓库根的 `.github/workflows/ci.yml` 会在推送到 `main` 或提交 PR 时运行，进入本 `backend/` 目录执行：
 
-- Ruff 代码检查
+- Ruff 代码检查与格式校验
 - mypy 严格类型检查
 - Python 编译与 FastAPI 应用导入
+- pytest 回归测试
 - pytest 回归测试
 
 CI 不连接外部服务、不部署应用。依赖版本由 `uv.lock` 锁定。

@@ -19,4 +19,4 @@ frontend/    前端应用（规划中）
 
 ## 持续集成
 
-`.github/workflows/ci.yml` 在推送或向 `main` / `master` 提交 PR 时运行，进入 `backend/` 执行锁文件校验、Ruff 检查与格式校验、Mypy 严格类型检查、编译和应用导入。
+`.github/workflows/ci.yml` 在推送或向 `main` / `master` 提交 PR 时运行，进入 `backend/` 执行锁文件校验、Ruff 检查与格式校验、Mypy 严格类型检查、编译、应用导入和 pytest 测试。

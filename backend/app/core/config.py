@@ -9,8 +9,11 @@
 提供方以及 LLM 相关配置会随对应功能模块的后续 PR 逐步引入。
 """
 
+import ipaddress
+import socket
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -18,9 +21,35 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # 这些占位密钥只允许本地/测试使用，绝不能进入生产环境。
 _INSECURE_DEFAULTS = {"change-me", "change-me-in-prod"}
 _MIN_SECRET_LENGTH = 32
-_LOCAL_CORS_HOSTS = ("localhost", "127.0.0.1")
 
 type AppEnv = Literal["local", "test", "prod"]
+
+
+def _is_local_origin(origin: str) -> bool:
+    """判断一个 CORS origin 是否指向本地回环地址。
+
+    解析出 host 后按精确规则判断，而不是子串匹配：``localhost``（含其大小写变体）
+    以及所有被归类为回环的 IP（``127.0.0.1``、``127.1``、``[::1]`` 等）都算本地。
+    这样既能挡住 ``http://[::1]:3000`` 这类伪装，也不会误杀
+    ``https://localhost.example.com`` 这种合法外部域名。
+    """
+    host = (urlparse(origin).hostname or "").strip().lower()
+    if not host:
+        return False
+    if host == "localhost":
+        return True
+    # 标准写法（127.0.0.1、::1 等）直接分类。
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        pass
+    # 浏览器会把简写 IPv4（如 127.1、127.0.1）规范化为点分四段，ipaddress 不接受这类
+    # 简写，需用 inet_aton 展开后再判断，避免 http://127.1 绕过回环校验。
+    try:
+        expanded = socket.inet_ntoa(socket.inet_aton(host))
+    except OSError:
+        return False
+    return ipaddress.ip_address(expanded).is_loopback
 
 
 class Settings(BaseSettings):
@@ -58,7 +87,7 @@ class Settings(BaseSettings):
         if (
             not self.app_cors_origins
             or "*" in self.app_cors_origins
-            or any(host in origin for origin in self.app_cors_origins for host in _LOCAL_CORS_HOSTS)
+            or any(_is_local_origin(origin) for origin in self.app_cors_origins)
         ):
             offenders.append("APP_CORS_ORIGINS (explicit allowlist required)")
         if offenders:

@@ -7,8 +7,12 @@
 
 from __future__ import annotations
 
+import datetime as _dt
 from collections.abc import Mapping
+from decimal import Decimal
+from enum import Enum
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -29,14 +33,47 @@ class FrozenDict(dict[Any, Any]):
     __ior__ = _immutable  # type: ignore[assignment]
 
 
+# 这些标量本身不可变，可安全按值保留：JSON 兼容基元 + 常见的不可变值类型。
+_FROZEN_SCALARS = (
+    str,
+    bytes,
+    int,
+    float,
+    bool,
+    type(None),
+    _dt.datetime,
+    _dt.date,
+    _dt.time,
+    _dt.timedelta,
+    Decimal,
+    UUID,
+    Enum,
+)
+
+
 def _deep_freeze(value: Any) -> Any:
+    """把嵌套结构递归冻结成不可变快照。
+
+    只接受不可变标量、标准容器，以及本身已冻结的 ``FrozenContract`` 实例。遇到无法
+    冻结的对象（如可变的自定义类实例或普通 Pydantic 模型）时直接抛错，而不是原样
+    返回——否则调用方之后改动那个对象，会悄悄改变一个已经构造好的“不可变”契约及其
+    序列化输出。
+    """
+    if isinstance(value, _FROZEN_SCALARS):
+        return value
+    # 已经是冻结契约（且其嵌套字段在自身构造时已被冻结），按值保留。
+    if isinstance(value, FrozenContract):
+        return value
     if isinstance(value, Mapping):
         return FrozenDict({key: _deep_freeze(item) for key, item in value.items()})
     if isinstance(value, list | tuple):
         return tuple(_deep_freeze(item) for item in value)
     if isinstance(value, set | frozenset):
         return frozenset(_deep_freeze(item) for item in value)
-    return value
+    raise TypeError(
+        f"契约字段不支持不可冻结的值类型 {type(value).__name__!r}；"
+        "请只使用 JSON 兼容的标量、不可变值类型或 FrozenContract。"
+    )
 
 
 class FrozenContract(BaseModel):

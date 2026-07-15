@@ -39,3 +39,35 @@ def test_prod_accepts_explicit_safe_settings() -> None:
     )
 
     assert settings.is_prod
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "http://localhost:3000",
+        "http://LOCALHOST:3000",
+        "http://127.0.0.1:8000",
+        "http://127.1:3000",  # 简写 IPv4，浏览器会规范化为 127.0.0.1
+        "http://[::1]:3000",  # IPv6 回环
+    ],
+)
+def test_prod_rejects_loopback_cors_origins(origin: str) -> None:
+    with pytest.raises(ValidationError, match="APP_CORS_ORIGINS"):
+        Settings(
+            app_env="prod",
+            app_debug=False,
+            app_secret_key="x" * 32,
+            app_cors_origins=(origin,),
+        )
+
+
+def test_prod_accepts_external_domain_containing_localhost() -> None:
+    # 子串匹配会把它误判为本地；正确的 host 解析应放行这个合法外部域名。
+    settings = Settings(
+        app_env="prod",
+        app_debug=False,
+        app_secret_key="x" * 32,
+        app_cors_origins=("https://localhost.example.com",),
+    )
+
+    assert settings.is_prod
