@@ -8,9 +8,15 @@
 依赖被误当作查询参数（返回 422 而非预期的 401/403）。
 """
 
+import pytest
 from fastapi.testclient import TestClient
 
-from app.core.security import create_access_token, decode_access_token
+from app.core.security import (
+    create_access_token,
+    decode_access_token,
+    hash_password,
+    verify_password,
+)
 from app.main import create_app
 
 
@@ -86,3 +92,34 @@ def test_require_admin_dependency_enforces_role() -> None:
         client.get("/admin-only", headers={"Authorization": f"Bearer {admin_token}"}).status_code
         == 200
     )
+
+
+def test_password_hash_verify_roundtrip() -> None:
+    """锁定 passlib/bcrypt 后端可用：哈希与校验往返正常。
+
+    钉住 bcrypt<5.0 前，passlib 1.7.4 初始化 bcrypt 5.x 会直接抛 ValueError；
+    本测试确保锁文件日后不会再引入不兼容组合。
+    """
+    hashed = hash_password("shortpass")
+    assert hashed != "shortpass"
+    assert verify_password("shortpass", hashed) is True
+    assert verify_password("wrongpass", hashed) is False
+
+
+def test_create_access_token_rejects_reserved_claim_override() -> None:
+    """extra 不能覆盖 sub/exp，避免签发指向非预期身份或有效期的 token。"""
+    for reserved in ({"sub": "attacker"}, {"exp": 0}):
+        with pytest.raises(ValueError, match="保留声明"):
+            create_access_token("real-user", extra=reserved)
+
+
+def test_login_is_rejected_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
+    """生产环境必须拒绝 mock 登录，杜绝任意凭据换取 token 的认证绕过。"""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "app_env", "prod")
+    resp = _client().post(
+        "/api/v1/users/login",
+        data={"username": "anyone", "password": "anything"},
+    )
+    assert resp.status_code == 401

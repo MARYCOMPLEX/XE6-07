@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
+from app.core.exceptions import AuthError
 from app.core.logging import get_logger
 from app.core.security import create_access_token
 from app.models.base import gen_uuid
@@ -53,6 +55,10 @@ class UserService:
         )
 
     async def authenticate(self, username: str, password: str) -> tuple[User, str]:
+        # 骨架桩不校验凭据：任意用户名/口令都会签发可用 token。这在生产环境等于
+        # 认证绕过，因此显式拒绝——真实认证接入前，mock 登录只允许在非生产环境使用。
+        if settings.is_prod:
+            raise AuthError("Authentication is not available in this build")
         logger.info("users.authenticate(mock)", username=username)
         user = _mock_user(email=f"{username}@mock", username=username)
         token = create_access_token("mock-user-id", extra={"role": "user"})
