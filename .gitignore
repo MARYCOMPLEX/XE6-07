@@ -1,0 +1,9 @@
+# --- Secrets / local config（仓库级，匹配任意子目录）---
+.env
+.env.*
+!.env.example
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+.DS_Store
