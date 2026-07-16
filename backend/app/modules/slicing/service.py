@@ -111,7 +111,8 @@ class SlicingService:
     async def confirm(self, owner_id: str, req: ConfirmRequest) -> PrintChecklist:
         logger.info("slicing.confirm(mock)", owner_id=owner_id, checklist_id=req.checklist_id)
         return PrintChecklist(
-            id=gen_uuid(),
+            # 身份契约：确认的是被请求的那份清单，回显 req.checklist_id 而非另生成。
+            id=req.checklist_id,
             slice_job_id=gen_uuid(),
             printer_id=gen_uuid(),
             user_confirmed_at="2026-01-01T00:00:00Z",

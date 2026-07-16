@@ -1,7 +1,9 @@
 """打印 API：提交、监控、取消和取件。
 
-这是流水线收口。``submit`` 由服务内的确认门禁和打印前检查保护，接口返回 ``202`` 和
-可轮询的打印任务句柄；设备下发本身在任务进程中执行。
+这是流水线收口。设计上 ``submit`` 由服务内的确认门禁与打印前检查保护，返回 ``202``
+和可轮询的打印任务句柄，设备下发在任务进程中执行。**注意：当前 service 层是不落库
+mock 桩，不执行上述任何运行时校验**——确认/preflight 门禁的实际 enforce 属真实
+持久化落地的后续 PR，勿依赖此处存在保护。
 """
 
 from __future__ import annotations
@@ -66,6 +68,8 @@ def _print_job_out(job: PrintJob) -> PrintJobOut:
         printer_id=job.printer_id,
         status=PrintJobStatus(job.status.value),
         progress=job.progress,
+        started_at=job.started_at,
+        completed_at=job.completed_at,
         actual_time_s=job.actual_time_s,
         actual_filament_g=job.actual_filament_g,
         pickup_code=job.pickup_code,

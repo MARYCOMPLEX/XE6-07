@@ -53,10 +53,13 @@ def test_postprocess_requires_at_least_one_op() -> None:
     assert resp.status_code == 422
 
 
-def test_get_process_job_has_timestamps() -> None:
-    resp = _client().get("/api/v1/preprocess/jobs/j-1", headers=_auth())
+def test_get_process_job_returns_stable_handle_with_timestamps() -> None:
+    """轮询句柄契约：返回被查询的 job_id，客户端才能关联提交的任务。"""
+    resp = _client().get("/api/v1/preprocess/jobs/job-abc", headers=_auth())
     assert resp.status_code == 200
-    assert resp.json()["created_at"] is not None
+    body = resp.json()
+    assert body["id"] == "job-abc"
+    assert body["created_at"] is not None
 
 
 # ── 设备 ──────────────────────────────────────────────────────────────
@@ -114,8 +117,8 @@ def test_get_slice_job_has_timestamps() -> None:
     assert body["created_at"] is not None
 
 
-def test_build_checklist_is_confirmation_gate() -> None:
-    """清单构建产出确认门禁载荷（含时间戳，回归 _checklist_out 的守卫）。"""
+def test_build_checklist_returns_confirmation_payload() -> None:
+    """清单构建产出确认载荷（含时间戳，回归 _checklist_out 的守卫）。"""
     resp = _client().post(
         "/api/v1/slicing/checklists",
         headers=_auth(),
@@ -123,6 +126,17 @@ def test_build_checklist_is_confirmation_gate() -> None:
     )
     assert resp.status_code == 200
     assert resp.json()["created_at"] is not None
+
+
+def test_confirm_echoes_requested_checklist_id() -> None:
+    """身份契约：确认响应回显被请求的 checklist_id，而非另生成。"""
+    resp = _client().post(
+        "/api/v1/slicing/checklists/confirm",
+        headers=_auth(),
+        json={"checklist_id": "chk-42", "accept_risks": True},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["id"] == "chk-42"
 
 
 # ── 打印 ──────────────────────────────────────────────────────────────
@@ -143,6 +157,9 @@ def test_get_print_job_has_progress_and_timestamps() -> None:
     body = resp.json()
     assert body["progress"] == 0.0
     assert body["created_at"] is not None
+    # PrintJobOut 声明了 started_at/completed_at，映射必须透传（桩里为 None）。
+    assert "started_at" in body
+    assert "completed_at" in body
 
 
 def test_pickup_marks_picked_up() -> None:
