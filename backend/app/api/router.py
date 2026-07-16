@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.modules.assets.router import router as assets_router
 from app.modules.generation.router import router as generation_router
 from app.modules.projects.router import router as projects_router
 from app.modules.users.router import router as users_router
@@ -20,3 +21,5 @@ api_router.include_router(users_router)
 api_router.include_router(projects_router)
 # 生成相关：文生图、图生图、图生模型、意图识别。
 api_router.include_router(generation_router)
+# 资产与模型版本：模型资产、修订、网格报告、回滚。
+api_router.include_router(assets_router)

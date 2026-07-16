@@ -19,7 +19,8 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 这些占位密钥只允许本地/测试使用，绝不能进入生产环境。
-_INSECURE_DEFAULTS = {"change-me", "change-me-in-prod"}
+# minioadmin 是 MinIO/对象存储的公开默认凭据，进入 prod 等同于无鉴权。
+_INSECURE_DEFAULTS = {"change-me", "change-me-in-prod", "minioadmin"}
 _MIN_SECRET_LENGTH = 32
 
 type AppEnv = Literal["local", "test", "prod"]
@@ -65,6 +66,14 @@ class Settings(BaseSettings):
     # 数据库。
     database_url: str = "postgresql+asyncpg://xe6:xe6@localhost:5432/xe6"
 
+    # 对象存储（assets 桶）。骨架为 mock，不连接真实 S3/MinIO；这些值供
+    # StorageClient 与凭据可观测层读取，证明凭据确实被消费。
+    s3_endpoint_url: str = "http://localhost:9000"
+    s3_access_key: str = "minioadmin"
+    s3_secret_key: str = "minioadmin"  # noqa: S105  (开发占位值；生产由 _guard_prod_secrets 拦截)
+    s3_bucket: str = "xe6-assets"
+    s3_region: str = "us-east-1"
+
     # 认证：JWT access token 签发参数。
     access_token_expire_minutes: int = 60
     jwt_algorithm: str = "HS256"
@@ -94,6 +103,11 @@ class Settings(BaseSettings):
             or any(_is_local_origin(origin) for origin in self.app_cors_origins)
         ):
             offenders.append("APP_CORS_ORIGINS (explicit allowlist required)")
+        # 对象存储占位凭据（minioadmin）进入 prod 等同公开无鉴权，必须显式替换。
+        if self.s3_access_key in _INSECURE_DEFAULTS:
+            offenders.append("S3_ACCESS_KEY")
+        if self.s3_secret_key in _INSECURE_DEFAULTS:
+            offenders.append("S3_SECRET_KEY")
         if offenders:
             raise ValueError("Unsafe production settings; set: " + ", ".join(offenders))
         return self

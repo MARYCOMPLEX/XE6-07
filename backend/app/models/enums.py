@@ -1,8 +1,8 @@
 """模型和数据模式共享的领域枚举。
 
-枚举值是稳定的存储和接口值。身份模块的用户词表随 #151 落地；本 PR（工作流）追加
-项目状态机、会话状态、来源类型、任务/生成词表与 Agent 意图集合。资产版本、社区、
-打印等其余枚举会随对应模块 PR 继续追加。
+枚举值是稳定的存储和接口值。身份模块的用户词表随 #151 落地；工作流桶追加项目状态机、
+会话状态、来源类型、任务/生成词表与 Agent 意图集合；本 PR（资产）追加资产版本状态、
+产物类型与可见性。社区、打印等其余枚举会随对应模块 PR 继续追加。
 """
 
 from __future__ import annotations
@@ -58,6 +58,33 @@ class SourceType(enum.StrEnum):
     image = "image"
     upload = "upload"
     community = "community"
+
+
+class AssetRevisionStatus(enum.StrEnum):
+    created = "created"
+    preview_ready = "preview_ready"
+    audit_pending = "audit_pending"
+    printable = "printable"
+    not_printable = "not_printable"
+    repaired = "repaired"
+    sliced = "sliced"
+    deprecated = "deprecated"
+    exported = "exported"
+
+
+class ArtifactType(enum.StrEnum):
+    reference_image = "reference_image"
+    generated_model = "generated_model"
+    uploaded_model = "uploaded_model"
+    repaired_model = "repaired_model"
+    sliced = "sliced"
+    exported = "exported"
+
+
+class Visibility(enum.StrEnum):
+    private = "private"
+    public = "public"
+    unlisted = "unlisted"
 
 
 class JobStatus(enum.StrEnum):

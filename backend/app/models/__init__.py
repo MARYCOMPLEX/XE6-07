@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from app.models.asset import AssetRevision, MeshReport, ModelAsset
 from app.models.base import Base
 from app.models.generation import GeneratedImage, GenerationJob
 from app.models.project import (
@@ -20,12 +21,16 @@ __all__ = [
     "Base",
     # 用户（#151）。
     "User",
-    # 项目工作台（本 PR）。
+    # 项目工作台（工作流桶）。
     "Project",
     "SessionContext",
     "DesignIntent",
     "ChatMessage",
-    # 生成（本 PR）。
+    # 生成（工作流桶）。
     "GenerationJob",
     "GeneratedImage",
+    # 资产与模型版本（本 PR）。
+    "ModelAsset",
+    "AssetRevision",
+    "MeshReport",
 ]
