@@ -19,7 +19,8 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # 这些占位密钥只允许本地/测试使用，绝不能进入生产环境。
-_INSECURE_DEFAULTS = {"change-me", "change-me-in-prod"}
+# minioadmin 是 MinIO/对象存储的公开默认凭据，进入 prod 等同于无鉴权。
+_INSECURE_DEFAULTS = {"change-me", "change-me-in-prod", "minioadmin"}
 _MIN_SECRET_LENGTH = 32
 
 type AppEnv = Literal["local", "test", "prod"]
@@ -102,6 +103,11 @@ class Settings(BaseSettings):
             or any(_is_local_origin(origin) for origin in self.app_cors_origins)
         ):
             offenders.append("APP_CORS_ORIGINS (explicit allowlist required)")
+        # 对象存储占位凭据（minioadmin）进入 prod 等同公开无鉴权，必须显式替换。
+        if self.s3_access_key in _INSECURE_DEFAULTS:
+            offenders.append("S3_ACCESS_KEY")
+        if self.s3_secret_key in _INSECURE_DEFAULTS:
+            offenders.append("S3_SECRET_KEY")
         if offenders:
             raise ValueError("Unsafe production settings; set: " + ", ".join(offenders))
         return self

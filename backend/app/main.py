@@ -19,6 +19,7 @@ from starlette.responses import Response
 
 from app.api.router import api_router
 from app.core.config import settings
+from app.core.credentials import log_active_credentials
 from app.core.exceptions import AppError
 from app.core.logging import bind_trace_id, configure_logging, get_logger
 
@@ -42,6 +43,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """启动与关闭生命周期钩子。"""
     configure_logging(debug=settings.app_debug)
     logger.info("app.startup", env=settings.app_env)
+    # 日志配置就绪后立即审计当前进程真正读到的凭据（脱敏），证明配置确实生效。
+    log_active_credentials()
     # 后续可在这里预热缓存、确保对象存储桶存在、探测外部提供方可用性。
     yield
     logger.info("app.shutdown")
