@@ -35,6 +35,17 @@ def test_browse_returns_offset_page() -> None:
     assert {"total", "page", "size"} <= body.keys()
 
 
+def test_browse_accepts_tag_filter() -> None:
+    """契约：browse 须暴露 tag 查询参数（PR 宣称关键词/标签筛选）。"""
+    resp = _client().get(
+        "/api/v1/community",
+        headers=_auth(),
+        params={"tag": "toys", "category_id": "cat-1", "sort": "new"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["items"] == []
+
+
 def test_list_categories_ok() -> None:
     resp = _client().get("/api/v1/community/categories", headers=_auth())
     assert resp.status_code == 200
@@ -53,12 +64,14 @@ def test_publish_returns_201_with_counts_and_timestamps() -> None:
     resp = _client().post(
         "/api/v1/community/publish",
         headers=_auth(),
-        json={"source_revision_id": "rev-1", "title": "My Model"},
+        json={"source_revision_id": "rev-1", "title": "My Model", "category_id": "cat-7"},
     )
     assert resp.status_code == 201
     body = resp.json()
     assert body["title"] == "My Model"
     assert body["source_revision_id"] == "rev-1"
+    # 契约：发布时选择的分类须回显，不得静默丢失。
+    assert body["category_id"] == "cat-7"
     assert body["review_status"] == "pending"
     assert body["like_count"] == 0
     assert body["hot_score"] == 0.0

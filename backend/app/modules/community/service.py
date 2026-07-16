@@ -57,6 +57,7 @@ class CommunityService:
             id=gen_uuid(),
             author_id=author_id,
             source_revision_id=data.source_revision_id,
+            category_id=data.category_id,
             title=data.title,
             description=data.description,
             tags=data.tags,
@@ -121,10 +122,11 @@ class CommunityService:
         offset: int,
         limit: int,
         category_id: str | None,
+        tag: str | None,
         sort: str,
         printable_only: bool,
     ) -> tuple[Sequence[CommunityModel], int]:
-        logger.info("community.browse(mock)", category_id=category_id, sort=sort)
+        logger.info("community.browse(mock)", category_id=category_id, tag=tag, sort=sort)
         return [], 0
 
     async def get_public(self, model_id: str) -> CommunityModel:

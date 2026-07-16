@@ -41,6 +41,7 @@ async def browse(
     user: CurrentUserDep,
     pg: PaginationDep,
     category_id: str | None = None,
+    tag: str | None = None,
     sort: str = "hot",
     printable_only: bool = False,
 ) -> OffsetPage[CommunityModelOut]:
@@ -48,6 +49,7 @@ async def browse(
         offset=pg.offset,
         limit=pg.size,
         category_id=category_id,
+        tag=tag,
         sort=sort,
         printable_only=printable_only,
     )

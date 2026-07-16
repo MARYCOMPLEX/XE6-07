@@ -47,6 +47,7 @@ class CommunityModelRepository(BaseRepository[CommunityModel]):
         offset: int,
         limit: int,
         category_id: str | None = None,
+        tag: str | None = None,
         sort: str = "hot",
         printable_only: bool = False,
         approved_only: bool = True,
@@ -56,6 +57,9 @@ class CommunityModelRepository(BaseRepository[CommunityModel]):
             stmt = stmt.where(CommunityModel.review_status == ReviewStatus.approved)
         if category_id:
             stmt = stmt.where(CommunityModel.category_id == category_id)
+        if tag:
+            # tags 是 JSONB 数组，按包含匹配单个标签。
+            stmt = stmt.where(CommunityModel.tags.contains([tag]))
         if printable_only:
             stmt = stmt.where(CommunityModel.printable_badge.is_(True))
         stmt = stmt.order_by(self._SORT.get(sort, self._SORT["hot"]))
