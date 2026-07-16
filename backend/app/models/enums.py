@@ -1,8 +1,9 @@
 """模型和数据模式共享的领域枚举。
 
 枚举值是稳定的存储和接口值。身份模块的用户词表随 #151 落地；工作流桶追加项目状态机、
-会话状态、来源类型、任务/生成词表与 Agent 意图集合；本 PR（资产）追加资产版本状态、
-产物类型与可见性。社区、打印等其余枚举会随对应模块 PR 继续追加。
+会话状态、来源类型、任务/生成词表与 Agent 意图集合；资产桶追加资产版本状态、产物类型
+与可见性；本 PR（打印）追加打印机状态与打印任务状态。社区等其余枚举会随对应模块 PR
+继续追加。
 """
 
 from __future__ import annotations
@@ -95,6 +96,25 @@ class JobStatus(enum.StrEnum):
     failed = "failed"
     cancelled = "cancelled"
     timeout = "timeout"
+
+
+class PrinterStatus(enum.StrEnum):
+    offline = "offline"
+    idle = "idle"
+    printing = "printing"
+    paused = "paused"
+    error = "error"
+
+
+class PrintJobStatus(enum.StrEnum):
+    queued = "queued"
+    sent = "sent"
+    printing = "printing"
+    paused = "paused"
+    completed = "completed"
+    picked_up = "picked_up"
+    cancelled = "cancelled"
+    failed = "failed"
 
 
 class GenerationKind(enum.StrEnum):
