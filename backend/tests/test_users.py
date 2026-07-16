@@ -123,3 +123,22 @@ def test_login_is_rejected_in_production(monkeypatch: pytest.MonkeyPatch) -> Non
         data={"username": "anyone", "password": "anything"},
     )
     assert resp.status_code == 401
+
+
+def test_login_token_subject_matches_returned_user_id() -> None:
+    """登录响应的 user.id、JWT sub 必须一致，避免客户端登录后身份切换。"""
+    resp = _client().post(
+        "/api/v1/users/login",
+        data={"username": "alice", "password": "supersecret"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    claims = decode_access_token(body["access_token"])
+    assert claims["sub"] == body["user"]["id"]
+
+
+def test_bcrypt_does_not_silently_truncate_at_72_bytes() -> None:
+    """bcrypt_sha256 消除 bcrypt 72 字节截断：仅第 73 字节不同的口令不得互通。"""
+    hashed = hash_password("a" * 72 + "X")
+    assert verify_password("a" * 72 + "X", hashed) is True
+    assert verify_password("a" * 72 + "Y", hashed) is False

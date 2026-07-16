@@ -61,7 +61,9 @@ class UserService:
             raise AuthError("Authentication is not available in this build")
         logger.info("users.authenticate(mock)", username=username)
         user = _mock_user(email=f"{username}@mock", username=username)
-        token = create_access_token("mock-user-id", extra={"role": "user"})
+        # token 的 sub 必须等于返回给客户端的 user.id：登录响应、JWT sub、后续 /me
+        # 三者身份要一致，否则客户端会在登录后发生身份切换。role 也取自该用户。
+        token = create_access_token(user.id, extra={"role": user.role.value})
         return user, token
 
     async def get(self, user_id: str) -> User:

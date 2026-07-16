@@ -9,7 +9,10 @@ from passlib.context import CryptContext
 from app.core.config import settings
 from app.core.exceptions import AuthError
 
-_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# 默认用 bcrypt_sha256：先对口令做 SHA256 再交给 bcrypt，彻底消除 bcrypt 仅取前 72
+# 字节的静默截断（否则 "a"*72+"X" 与 "a"*72+"Y" 会互相通过校验，多字节字符更早触发）。
+# 保留裸 bcrypt 仅用于校验历史哈希；新哈希一律走 bcrypt_sha256。
+_pwd = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="auto")
 
 
 def hash_password(raw: str) -> str:
