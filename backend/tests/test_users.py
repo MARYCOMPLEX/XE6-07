@@ -142,3 +142,60 @@ def test_bcrypt_does_not_silently_truncate_at_72_bytes() -> None:
     hashed = hash_password("a" * 72 + "X")
     assert verify_password("a" * 72 + "X", hashed) is True
     assert verify_password("a" * 72 + "Y", hashed) is False
+
+
+def test_me_preserves_admin_role_from_token() -> None:
+    """admin token 请求 /me、PATCH /me 都必须保留 admin，不得降级为 user。"""
+    token = create_access_token("admin-1", extra={"role": "admin"})
+    h = {"Authorization": f"Bearer {token}"}
+    client = _client()
+    me = client.get("/api/v1/users/me", headers=h)
+    assert me.status_code == 200
+    assert me.json()["role"] == "admin"
+    patched = client.patch("/api/v1/users/me", headers=h, json={"display_name": "Boss"})
+    assert patched.status_code == 200
+    assert patched.json()["role"] == "admin"
+
+
+def test_profile_fields_reject_over_length_values() -> None:
+    """输入约束须与 ORM 列长度一致：超长 display_name/avatar_uri 返回 422。"""
+    token = create_access_token("user-9", extra={"role": "user"})
+    h = {"Authorization": f"Bearer {token}"}
+    client = _client()
+    assert (
+        client.patch("/api/v1/users/me", headers=h, json={"display_name": "x" * 129}).status_code
+        == 422
+    )
+    assert (
+        client.patch("/api/v1/users/me", headers=h, json={"avatar_uri": "y" * 513}).status_code
+        == 422
+    )
+    reg = client.post(
+        "/api/v1/users/register",
+        json={
+            "email": "b@e.com",
+            "username": "bob",
+            "password": "supersecret",
+            "display_name": "z" * 129,
+        },
+    )
+    assert reg.status_code == 422
+
+
+def test_all_mock_routes_rejected_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
+    """生产保护须覆盖整个 mock service：register/PATCH 也不得静默成功丢数据。"""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "app_env", "prod")
+    client = _client()
+    reg = client.post(
+        "/api/v1/users/register",
+        json={"email": "c@e.com", "username": "carol", "password": "supersecret"},
+    )
+    assert reg.status_code == 401
+    token = create_access_token("user-p", extra={"role": "user"})
+    h = {"Authorization": f"Bearer {token}"}
+    assert client.get("/api/v1/users/me", headers=h).status_code == 401
+    assert (
+        client.patch("/api/v1/users/me", headers=h, json={"display_name": "x"}).status_code == 401
+    )

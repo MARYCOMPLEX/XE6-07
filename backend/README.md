@@ -2,8 +2,10 @@
 
 XE6-07 一站式 3D 打印系统的后端服务。
 
-这是后端的**基础骨架**：只包含 FastAPI 应用装配、共享基础设施和项目结构。
-业务模块（身份、工作流、资产、社区、打印等）与外部服务集成会在后续独立 PR 中陆续加入。
+这是后端的**基础骨架**：FastAPI 应用装配、共享基础设施、项目结构，以及**用户身份与认证模块**
+（注册 / 登录发放 JWT / `GET`、`PATCH /me`）。当前认证为不落库的 mock 桩，生产环境下整个 users
+service 会被拒绝，待真实持久化接入后替换。其余业务模块（工作流、资产、社区、打印等）与外部
+服务集成会在后续独立 PR 中陆续加入。
 
 技术栈：FastAPI + async SQLAlchemy，用 [uv](https://docs.astral.sh/uv/) 管理依赖。
 
@@ -45,12 +47,13 @@ make dev        # 启动 API（热重载）
 
 ```
 app/
-├── core/         # config / db / logging / exceptions
+├── core/         # config / db / logging / exceptions / security / deps
 ├── contracts/    # 跨模块共享的不可变契约（DTO / 枚举）
-├── models/       # SQLAlchemy 声明式基类与 mixin
+├── models/       # SQLAlchemy 声明式基类、mixin 与 User 模型
 ├── repositories/ # 通用异步仓储基类
 ├── schemas/      # 共享 Pydantic 响应模式
-├── api/          # 版本化路由聚合（骨架阶段为空）
+├── modules/      # 业务模块（当前：users —— router / service / schemas）
+├── api/          # 版本化路由聚合（已挂载 users 路由）
 └── main.py       # FastAPI 应用工厂
 alembic/          # 数据库迁移脚手架（骨架阶段无业务迁移）
 docker/           # API 镜像 Dockerfile

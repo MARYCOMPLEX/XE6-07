@@ -46,7 +46,16 @@ class UserService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    @staticmethod
+    def _guard_prod() -> None:
+        # 整个 service 都是不落库的 mock 桩：生产环境下 register/authenticate/get/
+        # update_profile 都会“返回成功但静默丢弃数据”，等于认证绕过 + 数据丢失。
+        # 真实持久化接入前，统一禁止生产环境使用本模块的任何 mock 路由。
+        if settings.is_prod:
+            raise AuthError("User service is not available in this build")
+
     async def register(self, data: UserRegister) -> User:
+        self._guard_prod()
         logger.info("users.register(mock)", email=data.email, username=data.username)
         return _mock_user(
             email=data.email,
@@ -55,10 +64,7 @@ class UserService:
         )
 
     async def authenticate(self, username: str, password: str) -> tuple[User, str]:
-        # 骨架桩不校验凭据：任意用户名/口令都会签发可用 token。这在生产环境等于
-        # 认证绕过，因此显式拒绝——真实认证接入前，mock 登录只允许在非生产环境使用。
-        if settings.is_prod:
-            raise AuthError("Authentication is not available in this build")
+        self._guard_prod()
         logger.info("users.authenticate(mock)", username=username)
         user = _mock_user(email=f"{username}@mock", username=username)
         # token 的 sub 必须等于返回给客户端的 user.id：登录响应、JWT sub、后续 /me
@@ -66,13 +72,18 @@ class UserService:
         token = create_access_token(user.id, extra={"role": user.role.value})
         return user, token
 
-    async def get(self, user_id: str) -> User:
+    async def get(self, user_id: str, *, role: UserRole = UserRole.user) -> User:
+        self._guard_prod()
         logger.info("users.get(mock)", user_id=user_id)
-        return _mock_user(id=user_id, email="mock@mock", username="mock")
+        # role 取自调用方的已认证身份（JWT），否则 admin 请求 /me 会被降级成 user。
+        return _mock_user(id=user_id, email="mock@mock", username="mock", role=role)
 
-    async def update_profile(self, user_id: str, data: UserUpdate) -> User:
+    async def update_profile(
+        self, user_id: str, data: UserUpdate, *, role: UserRole = UserRole.user
+    ) -> User:
+        self._guard_prod()
         logger.info("users.update_profile(mock)", user_id=user_id)
-        user = _mock_user(id=user_id, email="mock@mock", username="mock")
+        user = _mock_user(id=user_id, email="mock@mock", username="mock", role=role)
         for key, value in data.model_dump(exclude_unset=True).items():
             setattr(user, key, value)
         return user

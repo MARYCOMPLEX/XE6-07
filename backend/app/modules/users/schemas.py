@@ -12,7 +12,8 @@ class UserRegister(BaseModel):
     email: EmailStr
     username: str = Field(min_length=3, max_length=64)
     password: str = Field(min_length=8, max_length=128)
-    display_name: str | None = None
+    # 与 User.display_name 列 String(128) 对齐，避免接入真实库后写入失败/截断。
+    display_name: str | None = Field(default=None, max_length=128)
 
 
 class UserLogin(BaseModel):
@@ -22,8 +23,9 @@ class UserLogin(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    display_name: str | None = None
-    avatar_uri: str | None = None
+    # 与 User 列长度对齐：display_name String(128)、avatar_uri String(512)。
+    display_name: str | None = Field(default=None, max_length=128)
+    avatar_uri: str | None = Field(default=None, max_length=512)
 
 
 class UserOut(TimestampedOut):
