@@ -7,10 +7,15 @@ created_at/progress/diameter 等列默认值导致响应校验 500"的问题（�
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token
 from app.main import create_app
+from app.models.enums import PrintJobStatus
+from app.models.print import PrintJob
+from app.modules.printing.router import _print_job_out
 
 
 def _client() -> TestClient:
@@ -157,9 +162,29 @@ def test_get_print_job_has_progress_and_timestamps() -> None:
     body = resp.json()
     assert body["progress"] == 0.0
     assert body["created_at"] is not None
-    # PrintJobOut 声明了 started_at/completed_at，映射必须透传（桩里为 None）。
-    assert "started_at" in body
-    assert "completed_at" in body
+
+
+def test_print_job_out_forwards_lifecycle_timestamps() -> None:
+    """回归：_print_job_out 必须透传 started_at/completed_at 的实际值。
+
+    仅断言键存在无法覆盖此回归——PrintJobOut 给两字段 None 默认值，mapper 漏传时
+    键仍在（值 null）。故用非空且互不相同的值直接单测 mapper，删掉透传即 fail。
+    """
+    now = datetime.now(UTC)
+    job = PrintJob(
+        id="pj-ts",
+        checklist_id="c-1",
+        printer_id="p-1",
+        status=PrintJobStatus.completed,
+        progress=100.0,
+        started_at="2026-01-01T08:00:00Z",
+        completed_at="2026-01-01T09:30:00Z",
+        created_at=now,
+        updated_at=now,
+    )
+    out = _print_job_out(job)
+    assert out.started_at == "2026-01-01T08:00:00Z"
+    assert out.completed_at == "2026-01-01T09:30:00Z"
 
 
 def test_pickup_marks_picked_up() -> None:
