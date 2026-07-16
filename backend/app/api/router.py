@@ -9,6 +9,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.modules.assets.router import router as assets_router
+from app.modules.community.router import router as community_router
 from app.modules.devices.router import router as devices_router
 from app.modules.generation.router import router as generation_router
 from app.modules.preprocess.router import router as preprocess_router
@@ -35,3 +36,5 @@ api_router.include_router(devices_router)
 api_router.include_router(slicing_router)
 # 打印：打印任务、状态查询、取件记录。
 api_router.include_router(printing_router)
+# 社区：模型发布、Fork、点赞/收藏/评论、浏览排序与管理员审核。
+api_router.include_router(community_router)

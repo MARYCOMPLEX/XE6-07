@@ -8,6 +8,13 @@ from __future__ import annotations
 
 from app.models.asset import AssetRevision, MeshReport, ModelAsset
 from app.models.base import Base
+from app.models.community import (
+    Category,
+    Comment,
+    CommunityModel,
+    Favorite,
+    Like,
+)
 from app.models.generation import GeneratedImage, GenerationJob
 from app.models.print import (
     MaterialSpool,
@@ -50,4 +57,10 @@ __all__ = [
     "SliceJob",
     "PrintChecklist",
     "PrintJob",
+    # 社区：发布、Fork、点赞/收藏/评论、分类与审核（本 PR）。
+    "Category",
+    "CommunityModel",
+    "Like",
+    "Favorite",
+    "Comment",
 ]

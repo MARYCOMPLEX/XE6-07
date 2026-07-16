@@ -88,6 +88,14 @@ class Visibility(enum.StrEnum):
     unlisted = "unlisted"
 
 
+class ReviewStatus(enum.StrEnum):
+    """社区模型的管理员审核状态。"""
+
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
+
+
 class JobStatus(enum.StrEnum):
     pending = "pending"
     queued = "queued"
