@@ -7,6 +7,25 @@
 from __future__ import annotations
 
 from app.models.base import Base
+from app.models.generation import GeneratedImage, GenerationJob
+from app.models.project import (
+    ChatMessage,
+    DesignIntent,
+    Project,
+    SessionContext,
+)
 from app.models.user import User
 
-__all__ = ["Base", "User"]
+__all__ = [
+    "Base",
+    # 用户（#151）。
+    "User",
+    # 项目工作台（本 PR）。
+    "Project",
+    "SessionContext",
+    "DesignIntent",
+    "ChatMessage",
+    # 生成（本 PR）。
+    "GenerationJob",
+    "GeneratedImage",
+]

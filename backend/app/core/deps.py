@@ -1,12 +1,12 @@
 """共享 FastAPI 依赖：数据库会话与认证/授权。
 
-基础骨架阶段只提供身份模块所需的依赖。存储、Agent 运行时、分页等依赖会随
-对应模块 PR 追加。
+身份依赖随 #151 落地；本 PR（工作流）追加分页依赖。存储、Agent 运行时等依赖
+会随对应模块 PR 继续追加。
 """
 
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Query
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,3 +50,22 @@ async def require_admin(user: CurrentUserDep) -> CurrentUser:
 
 
 AdminDep = Annotated[CurrentUser, Depends(require_admin)]
+
+
+class Pagination(BaseModel):
+    page: int = 1
+    size: int = 20
+
+    @property
+    def offset(self) -> int:
+        return (self.page - 1) * self.size
+
+
+def pagination(
+    page: Annotated[int, Query(ge=1)] = 1,
+    size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> Pagination:
+    return Pagination(page=page, size=size)
+
+
+PaginationDep = Annotated[Pagination, Depends(pagination)]

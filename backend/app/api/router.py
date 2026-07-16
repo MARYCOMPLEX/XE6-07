@@ -8,9 +8,15 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.modules.generation.router import router as generation_router
+from app.modules.projects.router import router as projects_router
 from app.modules.users.router import router as users_router
 
 api_router = APIRouter()
 
 # 认证与账号。
 api_router.include_router(users_router)
+# 工作台：项目、对话、设计意图。
+api_router.include_router(projects_router)
+# 生成相关：文生图、图生图、图生模型、意图识别。
+api_router.include_router(generation_router)
