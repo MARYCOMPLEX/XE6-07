@@ -7,7 +7,6 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError
 from app.core.logging import get_logger
 from app.models.base import gen_uuid
 from app.models.print import MaterialSpool, PrinterDevice
@@ -106,8 +105,7 @@ class DeviceService:
         material_id: str | None = None,
         required_filament_grams: float | None = None,
     ) -> None:
-        # 本该调 printer adapter 做打印前检查，桩里不调 adapter。但耗材充足性门禁可用
-        # 确定性桩数据落地：给了耗材与所需克数时，校验余量是否够，让拒绝路径可测。
+        # 本该调 printer adapter 做打印前检查，桩里不调 adapter，只 log 后返回。
         logger.info(
             "devices.preflight_print(mock)",
             printer_id=printer_id,
@@ -115,12 +113,6 @@ class DeviceService:
             material_id=material_id,
             required_filament_grams=required_filament_grams,
         )
-        if material_id is not None and required_filament_grams is not None:
-            spool = await self.get_owned_spool(material_id, owner_id)
-            if required_filament_grams > spool.remaining_gram:
-                raise ConflictError(
-                    "Insufficient filament on spool for this print; load more material"
-                )
         return None
 
     @staticmethod

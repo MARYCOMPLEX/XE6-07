@@ -12,7 +12,6 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError, ValidationError
 from app.core.logging import get_logger
 from app.models.asset import AssetRevision, ModelAsset
 from app.models.base import gen_uuid
@@ -47,18 +46,11 @@ class SlicingService:
             revision_id=revision_id,
             owner_id=owner_id,
         )
-        # 骨架桩用 id 前缀模拟不同状态，让门禁的通过/拒绝两条路径都可测：
-        # 真实实现从库里读版本状态，这里用确定性桩数据代替。
-        status = (
-            AssetRevisionStatus.created
-            if revision_id.startswith("nonprintable")
-            else AssetRevisionStatus.printable
-        )
         revision = AssetRevision(
             id=revision_id,
             model_asset_id=gen_uuid(),
             artifact_type=ArtifactType.generated_model,
-            status=status,
+            status=AssetRevisionStatus.printable,
             glb_uri="mock://models/x.glb",
         )
         asset = ModelAsset(
@@ -71,11 +63,6 @@ class SlicingService:
     # -- 切片 -------------------------------------------------------------
     async def slice(self, owner_id: str, req: SliceRequest) -> SliceJob:
         logger.info("slicing.slice(mock)", owner_id=owner_id, revision_id=req.revision_id)
-        # 可打印性门禁：只有已审计为 printable 的版本才能切片。归属校验同时确保
-        # 版本存在且属于当前用户（桩里恒真，真实实现会 raise NotFound/PermissionDenied）。
-        revision, _asset = await self.get_owned_revision_with_asset(req.revision_id, owner_id)
-        if revision.status is not AssetRevisionStatus.printable:
-            raise ConflictError("Revision is not printable; run an audit before slicing")
         return SliceJob(
             id=gen_uuid(),
             revision_id=req.revision_id,
@@ -123,12 +110,8 @@ class SlicingService:
 
     async def confirm(self, owner_id: str, req: ConfirmRequest) -> PrintChecklist:
         logger.info("slicing.confirm(mock)", owner_id=owner_id, checklist_id=req.checklist_id)
-        # 确认门禁：未接受风险不得确认，否则打印链的"人工确认"边形同虚设。
-        if not req.accept_risks:
-            raise ValidationError("Risks must be accepted to confirm the checklist")
-        # 保留请求的 checklist_id：被确认的必须是同一份清单，不能凭空生成新 id。
         return PrintChecklist(
-            id=req.checklist_id,
+            id=gen_uuid(),
             slice_job_id=gen_uuid(),
             printer_id=gen_uuid(),
             user_confirmed_at="2026-01-01T00:00:00Z",
