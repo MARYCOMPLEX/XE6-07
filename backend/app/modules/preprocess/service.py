@@ -73,7 +73,8 @@ class PreprocessService:
     async def get_job(self, job_id: str, owner_id: str) -> MeshProcessJob:
         logger.info("preprocess.get_job(mock)", job_id=job_id, owner_id=owner_id)
         return MeshProcessJob(
-            id=gen_uuid(),
+            # 保留轮询句柄：返回被查询的 job_id，而非每次新生成，客户端才能关联结果。
+            id=job_id,
             project_id=gen_uuid(),
             owner_id=owner_id,
             source_revision_id=gen_uuid(),

@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token
 from app.main import create_app
+from app.modules.printing.service import PrintingService
 
 
 def _client() -> TestClient:
@@ -53,10 +54,13 @@ def test_postprocess_requires_at_least_one_op() -> None:
     assert resp.status_code == 422
 
 
-def test_get_process_job_has_timestamps() -> None:
-    resp = _client().get("/api/v1/preprocess/jobs/j-1", headers=_auth())
+def test_get_process_job_returns_stable_handle_with_timestamps() -> None:
+    """轮询句柄必须稳定：返回被查询的 job_id，客户端才能关联提交的任务。"""
+    resp = _client().get("/api/v1/preprocess/jobs/job-abc", headers=_auth())
     assert resp.status_code == 200
-    assert resp.json()["created_at"] is not None
+    body = resp.json()
+    assert body["id"] == "job-abc"
+    assert body["created_at"] is not None
 
 
 # ── 设备 ──────────────────────────────────────────────────────────────
@@ -106,6 +110,16 @@ def test_slice_rejects_unknown_engine() -> None:
     assert resp.status_code == 422
 
 
+def test_slice_rejects_non_printable_revision() -> None:
+    """可打印性门禁：非 printable 版本不能切片（id 前缀 nonprintable 模拟）。"""
+    resp = _client().post(
+        "/api/v1/slicing/slice",
+        headers=_auth(),
+        json={"revision_id": "nonprintable-1", "printer_id": "p-1"},
+    )
+    assert resp.status_code == 409
+
+
 def test_get_slice_job_has_timestamps() -> None:
     resp = _client().get("/api/v1/slicing/jobs/sj-1", headers=_auth())
     assert resp.status_code == 200
@@ -125,6 +139,29 @@ def test_build_checklist_is_confirmation_gate() -> None:
     assert resp.json()["created_at"] is not None
 
 
+def test_confirm_accepts_and_preserves_checklist_id() -> None:
+    """确认成功时必须确认的是被请求的那份清单，不能另生成 id。"""
+    resp = _client().post(
+        "/api/v1/slicing/checklists/confirm",
+        headers=_auth(),
+        json={"checklist_id": "chk-42", "accept_risks": True},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["id"] == "chk-42"
+    assert body["user_confirmed_at"] is not None
+
+
+def test_confirm_rejected_when_risks_not_accepted() -> None:
+    """确认门禁：未接受风险不得确认。"""
+    resp = _client().post(
+        "/api/v1/slicing/checklists/confirm",
+        headers=_auth(),
+        json={"checklist_id": "chk-42", "accept_risks": False},
+    )
+    assert resp.status_code == 422
+
+
 # ── 打印 ──────────────────────────────────────────────────────────────
 
 
@@ -136,6 +173,20 @@ def test_submit_print_returns_202() -> None:
     assert body["status"] == "queued"
 
 
+def test_submit_rejected_when_checklist_unconfirmed() -> None:
+    """确认门禁：未确认清单不得下发打印（id 前缀 unconfirmed 模拟）。"""
+    resp = _client().post(
+        "/api/v1/print-jobs", headers=_auth(), json={"checklist_id": "unconfirmed-1"}
+    )
+    assert resp.status_code == 409
+
+
+def test_submit_rejected_when_slice_is_stale() -> None:
+    """切片失效后不得下发打印（id 前缀 stale 模拟）。"""
+    resp = _client().post("/api/v1/print-jobs", headers=_auth(), json={"checklist_id": "stale-1"})
+    assert resp.status_code == 409
+
+
 def test_get_print_job_has_progress_and_timestamps() -> None:
     """回归：瞬态 PrintJob 需补 progress 与时间戳，否则 PrintJobOut 校验 500。"""
     resp = _client().get("/api/v1/print-jobs/pj-1", headers=_auth())
@@ -143,11 +194,32 @@ def test_get_print_job_has_progress_and_timestamps() -> None:
     body = resp.json()
     assert body["progress"] == 0.0
     assert body["created_at"] is not None
+    # 生命周期时间戳字段必须透传（即便桩里为 None），不能在转换时丢掉。
+    assert "started_at" in body
+    assert "completed_at" in body
 
 
-def test_pickup_marks_picked_up() -> None:
+def test_pickup_with_valid_code_marks_picked_up() -> None:
+    code = PrintingService._expected_pickup_code("pj-1")
     resp = _client().post(
-        "/api/v1/print-jobs/pj-1/pickup", headers=_auth(), json={"pickup_code": "ABC123"}
+        "/api/v1/print-jobs/pj-1/pickup", headers=_auth(), json={"pickup_code": code}
     )
     assert resp.status_code == 200
     assert resp.json()["status"] == "picked_up"
+
+
+def test_pickup_rejects_wrong_code() -> None:
+    """取件码必须校验：错误码不能把任务标记为已取件。"""
+    resp = _client().post(
+        "/api/v1/print-jobs/pj-1/pickup", headers=_auth(), json={"pickup_code": "WRONG9"}
+    )
+    assert resp.status_code == 422
+
+
+def test_pickup_rejects_incomplete_job() -> None:
+    """只有已完成任务可取件（id 前缀 notdone 模拟进行中任务）。"""
+    code = PrintingService._expected_pickup_code("notdone-1")
+    resp = _client().post(
+        "/api/v1/print-jobs/notdone-1/pickup", headers=_auth(), json={"pickup_code": code}
+    )
+    assert resp.status_code == 409

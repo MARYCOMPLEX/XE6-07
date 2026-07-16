@@ -66,6 +66,8 @@ def _print_job_out(job: PrintJob) -> PrintJobOut:
         printer_id=job.printer_id,
         status=PrintJobStatus(job.status.value),
         progress=job.progress,
+        started_at=job.started_at,
+        completed_at=job.completed_at,
         actual_time_s=job.actual_time_s,
         actual_filament_g=job.actual_filament_g,
         pickup_code=job.pickup_code,
