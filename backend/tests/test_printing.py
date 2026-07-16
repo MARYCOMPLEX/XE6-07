@@ -7,10 +7,13 @@ created_at/progress/diameter 等列默认值导致响应校验 500"的问题（�
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token
 from app.main import create_app
+from app.modules.printing.schemas import PrintSubmitRequest
 from app.modules.printing.service import PrintingService
 
 
@@ -187,22 +190,46 @@ def test_submit_rejected_when_slice_is_stale() -> None:
     assert resp.status_code == 409
 
 
-def test_get_print_job_has_progress_and_timestamps() -> None:
-    """回归：瞬态 PrintJob 需补 progress 与时间戳，否则 PrintJobOut 校验 500。"""
+def test_submit_rejected_when_filament_insufficient() -> None:
+    """打印前耗材充足性门禁：切片估算超过卷余量时拒绝下发（id 前缀 lowstock 模拟）。"""
+    resp = _client().post(
+        "/api/v1/print-jobs", headers=_auth(), json={"checklist_id": "lowstock-1"}
+    )
+    assert resp.status_code == 409
+
+
+def test_submit_binds_job_to_checklist_printer() -> None:
+    """任务必须绑定清单里 preflight 过的打印机，而非另取随机设备。"""
+
+    async def run() -> tuple[str, str]:
+        svc = PrintingService(session=None)  # type: ignore[arg-type]
+        checklist, _slice, _rev = await svc.get_owned_checklist("chk-bind", "user-1")
+        job = await svc.submit("user-1", PrintSubmitRequest(checklist_id="chk-bind"))
+        return checklist.printer_id, job.printer_id
+
+    checklist_printer, job_printer = asyncio.run(run())
+    assert job_printer == checklist_printer
+
+
+def test_get_print_job_exposes_progress_pickup_code_and_timestamps() -> None:
+    """回归：PrintJob 需补 progress/时间戳；并暴露 pickup_code 供客户端取件。"""
     resp = _client().get("/api/v1/print-jobs/pj-1", headers=_auth())
     assert resp.status_code == 200
     body = resp.json()
-    assert body["progress"] == 0.0
+    assert body["progress"] == 100.0
     assert body["created_at"] is not None
+    assert body["pickup_code"]
     # 生命周期时间戳字段必须透传（即便桩里为 None），不能在转换时丢掉。
     assert "started_at" in body
     assert "completed_at" in body
 
 
-def test_pickup_with_valid_code_marks_picked_up() -> None:
-    code = PrintingService._expected_pickup_code("pj-1")
-    resp = _client().post(
-        "/api/v1/print-jobs/pj-1/pickup", headers=_auth(), json={"pickup_code": code}
+def test_pickup_with_stored_code_marks_picked_up() -> None:
+    """取件码走 GET 响应读取（即任务存储值），而非由公开 job id 推导。"""
+    client = _client()
+    stored = client.get("/api/v1/print-jobs/pj-1", headers=_auth()).json()["pickup_code"]
+    resp = client.post(
+        "/api/v1/print-jobs/pj-1/pickup", headers=_auth(), json={"pickup_code": stored}
     )
     assert resp.status_code == 200
     assert resp.json()["status"] == "picked_up"
@@ -211,15 +238,14 @@ def test_pickup_with_valid_code_marks_picked_up() -> None:
 def test_pickup_rejects_wrong_code() -> None:
     """取件码必须校验：错误码不能把任务标记为已取件。"""
     resp = _client().post(
-        "/api/v1/print-jobs/pj-1/pickup", headers=_auth(), json={"pickup_code": "WRONG9"}
+        "/api/v1/print-jobs/pj-1/pickup", headers=_auth(), json={"pickup_code": "ZZZZZZ"}
     )
     assert resp.status_code == 422
 
 
 def test_pickup_rejects_incomplete_job() -> None:
     """只有已完成任务可取件（id 前缀 notdone 模拟进行中任务）。"""
-    code = PrintingService._expected_pickup_code("notdone-1")
     resp = _client().post(
-        "/api/v1/print-jobs/notdone-1/pickup", headers=_auth(), json={"pickup_code": code}
+        "/api/v1/print-jobs/notdone-1/pickup", headers=_auth(), json={"pickup_code": "ANY000"}
     )
     assert resp.status_code == 409
