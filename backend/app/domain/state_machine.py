@@ -85,6 +85,14 @@ class ProjectStateMachine:
     def can_user_command(self, current: S, target: S) -> bool:
         return target in _USER_COMMAND_TARGETS and self.can(current, target)
 
+    def is_user_command_target(self, target: S) -> bool:
+        """目标是否属于用户可直接命令的状态（与当前状态无关的必要条件）。
+
+        系统结果态（如 ``generating_image``）不在此集合，只能经可信 WorkflowEvent 进入。
+        骨架桩不持有当前状态，用它先挡住"客户端伪造系统结果态"这条契约级红线。
+        """
+        return target in _USER_COMMAND_TARGETS
+
     def assert_can(self, current: S, target: S) -> None:
         if not self.can(current, target):
             raise InvalidStateTransitionError(

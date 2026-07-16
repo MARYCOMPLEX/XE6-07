@@ -16,7 +16,9 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.contracts.workflow import WorkflowEvent
+from app.core.exceptions import InvalidStateTransitionError
 from app.core.logging import get_logger
+from app.domain.state_machine import state_machine
 from app.models.base import gen_uuid
 from app.models.enums import ProjectStatus, SourceType
 from app.models.project import ChatMessage, DesignIntent, Project
@@ -94,6 +96,12 @@ class ProjectService:
     async def transition_user_command(
         self, project_id: str, owner_id: str, target: ProjectStatus
     ) -> Project:
+        # 契约级守卫：系统结果态只能经可信 WorkflowEvent 进入，用户不能直接命令。
+        # 即便骨架不持有当前状态，也先挡住"客户端伪造系统结果态"这条红线。
+        if not state_machine.is_user_command_target(target):
+            raise InvalidStateTransitionError(
+                f"{target.value!r} 不是用户可直接提交的目标状态，只能由系统事件进入",
+            )
         logger.info(
             "projects.transition_user_command(mock)",
             project_id=project_id,
@@ -106,15 +114,18 @@ class ProjectService:
         self, project_id: str, owner_id: str, data: DesignIntentUpsert
     ) -> DesignIntent:
         logger.info("projects.upsert_intent(mock)", project_id=project_id)
+        # 瞬态对象未 flush，列默认值不会写入实例；显式补 schema_version 满足
+        # DesignIntentOut 的必填字段，否则响应校验 500。
         return DesignIntent(
             id=gen_uuid(),
             project_id=project_id,
+            schema_version="v0",
             **data.model_dump(exclude_unset=True),
         )
 
     async def get_intent(self, project_id: str, owner_id: str) -> DesignIntent:
         logger.info("projects.get_intent(mock)", project_id=project_id)
-        return DesignIntent(id=gen_uuid(), project_id=project_id)
+        return DesignIntent(id=gen_uuid(), project_id=project_id, schema_version="v0")
 
     # -- 对话 -------------------------------------------------------------
     async def add_message(

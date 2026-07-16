@@ -93,10 +93,7 @@ def test_create_project_rejects_unknown_source_type() -> None:
 def test_user_transition_accepts_legitimate_target() -> None:
     """用户指令端点锁定契约：合法目标回 200 并反映目标状态。
 
-    注意：骨架 service 按设计不做状态机校验（见 service docstring）；对“系统结果态
-    不可由用户命令进入”的拒绝逻辑由纯状态机测试
-    ``test_user_command_forbids_system_result_states`` 覆盖，接入真实实现后在此补
-    API 级拒绝断言。
+    revising 属用户可决定目标，回 200 并反映目标状态。
     """
     c = _client()
     resp = c.post(
@@ -106,6 +103,21 @@ def test_user_transition_accepts_legitimate_target() -> None:
     )
     assert resp.status_code == 200
     assert resp.json()["status"] == "revising"
+
+
+def test_user_transition_to_system_result_state_is_rejected() -> None:
+    """契约红线：用户不能把项目直接命令进异步结果态（generating_image）。
+
+    该状态不在 _USER_COMMAND_TARGETS 中，service 守卫抛 InvalidStateTransitionError，
+    映射为 409。防止客户端伪造只应由可信 WorkflowEvent 产生的系统结果态。
+    """
+    c = _client()
+    resp = c.post(
+        "/api/v1/projects/p-1/transition",
+        headers=_auth(),
+        json={"target": "generating_image"},
+    )
+    assert resp.status_code == 409
 
 
 def test_list_projects_is_paginated_shell() -> None:
@@ -140,3 +152,33 @@ def test_generation_requires_auth() -> None:
         json={"project_id": "p-1", "prompt": "x"},
     )
     assert resp.status_code == 401
+
+
+def test_upsert_and_shape_design_intent() -> None:
+    """PUT /projects/{id}/intent 锁定契约：回 200，schema_version 有值，字段回显。"""
+    resp = _client().put(
+        "/api/v1/projects/p-1/intent",
+        headers=_auth(),
+        json={"subject": "台灯", "style": "北欧"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["schema_version"] == "v0"
+    assert body["subject"] == "台灯"
+
+
+def test_get_design_intent_returns_valid_shell() -> None:
+    resp = _client().get("/api/v1/projects/p-1/intent", headers=_auth())
+    assert resp.status_code == 200
+    assert resp.json()["schema_version"] == "v0"
+
+
+def test_generation_job_is_pollable_after_accept() -> None:
+    """202 交回的任务句柄必须能被 GET /jobs/{id} 成功轮询（契约闭环）。"""
+    resp = _client().get("/api/v1/generation/jobs/job-1", headers=_auth())
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "pending"
+    assert body["is_fallback"] is False
+    assert body["retry_count"] == 0
+    assert body["created_at"] is not None
