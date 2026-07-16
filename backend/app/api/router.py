@@ -9,8 +9,12 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.modules.assets.router import router as assets_router
+from app.modules.devices.router import router as devices_router
 from app.modules.generation.router import router as generation_router
+from app.modules.preprocess.router import router as preprocess_router
+from app.modules.printing.router import router as printing_router
 from app.modules.projects.router import router as projects_router
+from app.modules.slicing.router import router as slicing_router
 from app.modules.users.router import router as users_router
 
 api_router = APIRouter()
@@ -23,3 +27,11 @@ api_router.include_router(projects_router)
 api_router.include_router(generation_router)
 # 资产与模型版本：模型资产、修订、网格报告、回滚。
 api_router.include_router(assets_router)
+# 预处理：网格规范化/修复任务。
+api_router.include_router(preprocess_router)
+# 设备：打印机与耗材管理。
+api_router.include_router(devices_router)
+# 切片：切片任务编排、检查门禁、方案选择。
+api_router.include_router(slicing_router)
+# 打印：打印任务、状态查询、取件记录。
+api_router.include_router(printing_router)
