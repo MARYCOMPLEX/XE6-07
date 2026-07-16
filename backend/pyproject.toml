@@ -19,6 +19,9 @@ dependencies = [
     "passlib>=1.7",
     "bcrypt>=4.0,<5.0",
     "python-multipart>=0.0.12",
+    # 任务编排：骨架阶段强制 eager 内联执行，不连接 Redis；真实部署再启用队列。
+    "redis>=5.2",
+    "celery[redis]>=5.4",
 ]
 
 [dependency-groups]
@@ -46,6 +49,11 @@ select = ["E", "F", "I", "N", "UP", "B", "ASYNC", "S", "C4", "SIM"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
+
+# celery 不随发行版提供类型存根（无 py.typed），不因其导入而报错。
+[[tool.mypy.overrides]]
+module = ["celery.*"]
+ignore_missing_imports = true
 
 [build-system]
 requires = ["hatchling"]
