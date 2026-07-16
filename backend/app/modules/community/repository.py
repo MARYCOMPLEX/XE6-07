@@ -48,6 +48,7 @@ class CommunityModelRepository(BaseRepository[CommunityModel]):
         limit: int,
         category_id: str | None = None,
         tag: str | None = None,
+        keyword: str | None = None,
         sort: str = "hot",
         printable_only: bool = False,
         approved_only: bool = True,
@@ -60,6 +61,12 @@ class CommunityModelRepository(BaseRepository[CommunityModel]):
         if tag:
             # tags 是 JSONB 数组，按包含匹配单个标签。
             stmt = stmt.where(CommunityModel.tags.contains([tag]))
+        if keyword:
+            # 关键词按标题/描述模糊匹配。
+            like = f"%{keyword}%"
+            stmt = stmt.where(
+                CommunityModel.title.ilike(like) | CommunityModel.description.ilike(like)
+            )
         if printable_only:
             stmt = stmt.where(CommunityModel.printable_badge.is_(True))
         stmt = stmt.order_by(self._SORT.get(sort, self._SORT["hot"]))

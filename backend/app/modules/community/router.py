@@ -20,6 +20,7 @@ from .schemas import (
     ForkResult,
     PublishRequest,
     ReviewDecision,
+    SortKey,
     ToggleResult,
 )
 from .service import CommunityService
@@ -42,7 +43,8 @@ async def browse(
     pg: PaginationDep,
     category_id: str | None = None,
     tag: str | None = None,
-    sort: str = "hot",
+    keyword: str | None = None,
+    sort: SortKey = "hot",
     printable_only: bool = False,
 ) -> OffsetPage[CommunityModelOut]:
     items, total = await CommunityService(db).browse(
@@ -50,6 +52,7 @@ async def browse(
         limit=pg.size,
         category_id=category_id,
         tag=tag,
+        keyword=keyword,
         sort=sort,
         printable_only=printable_only,
     )

@@ -6,10 +6,15 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.models.enums import ReviewStatus
 from app.schemas.common import ORMModel, TimestampedOut
+
+# 浏览排序公开契约：约束为封闭集合，非法值由 FastAPI 返回 422，并出现在 OpenAPI。
+SortKey = Literal["hot", "new", "likes"]
 
 
 # -- 分类 -----------------------------------------------------------------
@@ -83,7 +88,8 @@ class CommentOut(TimestampedOut):
 class CommunityListFilter(BaseModel):
     category_id: str | None = None
     tag: str | None = None
-    sort: str = "hot"  # hot | new | likes
+    keyword: str | None = None
+    sort: SortKey = "hot"
     printable_only: bool = False
 
 

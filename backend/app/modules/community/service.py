@@ -21,7 +21,7 @@ from app.models.enums import (
 )
 from app.models.project import Project
 
-from .schemas import CommentCreate, PublishRequest, ReviewDecision
+from .schemas import CommentCreate, PublishRequest, ReviewDecision, SortKey
 
 logger = get_logger("community")
 
@@ -123,10 +123,17 @@ class CommunityService:
         limit: int,
         category_id: str | None,
         tag: str | None,
-        sort: str,
+        keyword: str | None,
+        sort: SortKey,
         printable_only: bool,
     ) -> tuple[Sequence[CommunityModel], int]:
-        logger.info("community.browse(mock)", category_id=category_id, tag=tag, sort=sort)
+        logger.info(
+            "community.browse(mock)",
+            category_id=category_id,
+            tag=tag,
+            keyword=keyword,
+            sort=sort,
+        )
         return [], 0
 
     async def get_public(self, model_id: str) -> CommunityModel:
@@ -161,6 +168,8 @@ class CommunityService:
             source_revision_id=gen_uuid(),
             title="(mock)",
             review_status=decision.status,
+            reviewed_by=admin_id,
+            review_note=decision.note,
             **_counts(),
             **_stamps(),
         )

@@ -6,10 +6,14 @@ created_at/反范式计数列默认值导致响应校验 500"的问题（延续 
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi.testclient import TestClient
 
 from app.core.security import create_access_token
 from app.main import create_app
+from app.modules.community.schemas import ReviewDecision
+from app.modules.community.service import CommunityService
 
 
 def _client() -> TestClient:
@@ -35,15 +39,21 @@ def test_browse_returns_offset_page() -> None:
     assert {"total", "page", "size"} <= body.keys()
 
 
-def test_browse_accepts_tag_filter() -> None:
-    """契约：browse 须暴露 tag 查询参数（PR 宣称关键词/标签筛选）。"""
+def test_browse_accepts_tag_and_keyword_filters() -> None:
+    """契约：browse 须暴露 tag 与 keyword 查询参数（PR/Ref #138 宣称标签+关键词筛选）。"""
     resp = _client().get(
         "/api/v1/community",
         headers=_auth(),
-        params={"tag": "toys", "category_id": "cat-1", "sort": "new"},
+        params={"tag": "toys", "keyword": "dragon", "category_id": "cat-1", "sort": "new"},
     )
     assert resp.status_code == 200
     assert resp.json()["items"] == []
+
+
+def test_browse_rejects_unknown_sort() -> None:
+    """契约：sort 是封闭集合，未知值返回 422 而非静默回退。"""
+    resp = _client().get("/api/v1/community", headers=_auth(), params={"sort": "bogus"})
+    assert resp.status_code == 422
 
 
 def test_list_categories_ok() -> None:
@@ -146,3 +156,17 @@ def test_review_as_admin_reflects_decision() -> None:
 
 def test_list_pending_requires_admin() -> None:
     assert _client().get("/api/v1/community/admin/pending", headers=_auth()).status_code == 403
+
+
+def test_review_preserves_audit_fields() -> None:
+    """service 级契约：审核桩须保留 reviewed_by 与 review_note，不得静默丢弃。
+
+    这两个字段不经公开响应模型暴露（避免泄露审核人身份），故直接断言 service 产物。
+    review 桩不触碰 session，可传 None 驱动。
+    """
+    svc = CommunityService(session=None)  # type: ignore[arg-type]
+    decision = ReviewDecision(status="approved", note="clean geometry")
+    model = asyncio.run(svc.review("admin-42", "mdl-1", decision))
+    assert model.reviewed_by == "admin-42"
+    assert model.review_note == "clean geometry"
+    assert model.review_status == "approved"
