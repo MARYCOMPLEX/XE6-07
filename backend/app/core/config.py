@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     # 数据库。
     database_url: str = "postgresql+asyncpg://xe6:xe6@localhost:5432/xe6"
 
+    # 对象存储（assets 桶）。骨架为 mock，不连接真实 S3/MinIO；这些值供
+    # StorageClient 与凭据可观测层读取，证明凭据确实被消费。
+    s3_endpoint_url: str = "http://localhost:9000"
+    s3_access_key: str = "minioadmin"
+    s3_secret_key: str = "minioadmin"  # noqa: S105  (开发占位值；生产由 _guard_prod_secrets 拦截)
+    s3_bucket: str = "xe6-assets"
+    s3_region: str = "us-east-1"
+
     # 认证：JWT access token 签发参数。
     access_token_expire_minutes: int = 60
     jwt_algorithm: str = "HS256"
